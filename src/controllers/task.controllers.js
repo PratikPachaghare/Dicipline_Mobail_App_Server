@@ -1,10 +1,13 @@
 import { TaskList } from "../models/taskList.model.js";
+import { validateTaskWithImage } from "../utils/geminiTaskValidator.js";
+import { markDailyActivity } from "./activityHeatmap.controllers.js";
 
 // first login createTakList  
 export const createTaskList = async (req, res) => {
   try {
     const userId = req.user._id;
     const { tasks } = req.body;
+
 
     if (!Array.isArray(tasks) || tasks.length === 0) {
       return res.status(400).json({
@@ -107,7 +110,6 @@ export const addTasksToTaskList = async (req, res) => {
 };
 
 
-
 /*
   GET USER TASK LIST
   - Daily auto-reset logic yahin hota hai
@@ -162,6 +164,8 @@ export const getTaskList = async (req, res) => {
 export const completeTask = async (req, res) => {
   const userId = req.user._id;
   const { taskId } = req.params;
+  const { imageBase64 } = req.body
+
 
   const taskList = await TaskList.findOne({ user: userId });
   if (!taskList) return res.status(404).json({ message: "Task list not found" });
@@ -179,6 +183,19 @@ export const completeTask = async (req, res) => {
   const task = taskList.tasks.id(taskId);
   if (!task) return res.status(404).json({ message: "Task not found" });
 
+   const isValid = await validateTaskWithImage({
+      imageBase64,
+      taskTitle: task.title,
+    });
+
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Task validation failed (image not valid)",
+      });
+    }
+
+
   // ❌ Already completed today
   if (
     task.lastCompletedDate &&
@@ -195,11 +212,12 @@ export const completeTask = async (req, res) => {
   if (taskList.todayCompletedCount === taskList.totalTasks) {
     taskList.streak += 1;
   }
-
+  await markDailyActivity(userId, taskList.todayCompletedCount);
   await taskList.save();
 
   return res.json({
     message: "Task completed",
+    success:true,
     todayCompletedCount: taskList.todayCompletedCount,
     streak: taskList.streak,
   });

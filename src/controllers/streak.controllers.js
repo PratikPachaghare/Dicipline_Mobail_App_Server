@@ -1,4 +1,4 @@
-import { Streak } from "../models/streak.model";
+import { Streak } from "../models/streak.model.js";
 
 export const checkStreakReset = async (userId) => {
   const streak = await Streak.findOne({ user: userId });
