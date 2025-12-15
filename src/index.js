@@ -4,11 +4,11 @@ import dotenv from "dotenv"
 import {connectdb} from "./DB/index.js"
 import app from "./app.js";
 
-const PORT = process.env.PORT || 8000;
-
 dotenv.config({
-    path:'./env'
+    path:'../.env'
 })
+
+const PORT = process.env.PORT || 8000;
 
 connectdb()
 .then(()=>{
@@ -19,8 +19,6 @@ connectdb()
 .catch((error)=>{
     console.log(`Error id fount in express app side `,error);
 })
-
-
 
 
 

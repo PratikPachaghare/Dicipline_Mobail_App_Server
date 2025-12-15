@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 
@@ -18,9 +18,9 @@ const generateToken = (userId) => {
 =============================== */
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password,phone } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !phone) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -36,6 +36,7 @@ export const registerUser = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      phone
     });
 
     // 🔥 AUTO LOGIN AFTER REGISTER
@@ -48,6 +49,7 @@ export const registerUser = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone:user.phone
       },
     });
   } catch (error) {
@@ -61,35 +63,50 @@ export const registerUser = async (req, res) => {
 =============================== */
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+    // ✅ password required
+    if (!password) {
+      return res.status(400).json({ message: "Password is required" });
     }
 
-    const user = await User.findOne({ email }).select("+password");
+    // ✅ email OR phone required
+    if (!email && !phone) {
+      return res.status(400).json({
+        message: "Email or phone is required",
+      });
+    }
+
+    // 🔍 find user by email OR phone
+    const user = await User.findOne({
+      $or: [{ email }, { phone }],
+    }).select("+password");
+
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // 🔐 password check
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    // 🎟 JWT
     const token = generateToken(user._id);
 
-    return res.json({
+    return res.status(200).json({
       message: "Login successful",
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Login error:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };

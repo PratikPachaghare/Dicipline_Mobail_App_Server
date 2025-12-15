@@ -1,7 +1,4 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcrypt'); // Note: Changed to 'bcrypt' as per your dependencies
-const jwt = require('jsonwebtoken');
-const config = require('../config/env');
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
@@ -17,9 +14,13 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false, // Security: Don't return password by default
     },
-    fullName: {
+    name: {
       type: String,
       trim: true,
+    },
+    phone:{
+      type:Number,
+      required:true
     },
     // New: Profile Picture support
     avatar: {
@@ -41,21 +42,21 @@ const userSchema = new mongoose.Schema(
 );
 
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
-});
+// userSchema.pre('save', async function (next) {
+//   if (!this.isModified('password')) return next();
+//   const salt = await bcrypt.genSalt(10);
+//   this.password = await bcrypt.hash(this.password, salt);
+//   next();
+// });
 
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
-};
+// userSchema.methods.matchPassword = async function (enteredPassword) {
+//   return await bcrypt.compare(enteredPassword, this.password);
+// };
 
-userSchema.methods.getSignedJwtToken = function () {
-  return jwt.sign({ id: this._id }, config.jwtSecret, {
-    expiresIn: '30d',
-  });
-};
+// userSchema.methods.getSignedJwtToken = function () {
+//   return jwt.sign({ id: this._id },process.env.JWT_SECRET , {
+//     expiresIn: '30d',
+//   });
+// };
 
-module.exports = mongoose.model('User', userSchema);
+export const User = mongoose.model("User", userSchema);

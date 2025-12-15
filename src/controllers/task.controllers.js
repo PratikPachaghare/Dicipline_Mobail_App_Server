@@ -1,4 +1,4 @@
-import { TaskList } from "../models/taskList.model.js";
+import { TaskList } from "../models/task.model.js";
 import { validateTaskWithImage } from "../utils/geminiTaskValidator.js";
 import { markDailyActivity } from "./activityHeatmap.controllers.js";
 
@@ -26,6 +26,7 @@ export const createTaskList = async (req, res) => {
 
     const taskList = await TaskList.create({
       user: userId,
+      totalTasks:tasks.length,
       tasks: tasks.map(task => ({
         title: task.title,
         description: task.description,
@@ -48,7 +49,7 @@ export const createTaskList = async (req, res) => {
 };
 
 // add new tasks in tasklist
-export const addTasksToTaskList = async (req, res) => {
+export const addTasksToList = async (req, res) => {
   try {
     const userId = req.user._id;
     const { tasks } = req.body; // new tasks array
@@ -164,11 +165,23 @@ export const getTaskList = async (req, res) => {
 export const completeTask = async (req, res) => {
   const userId = req.user._id;
   const { taskId } = req.params;
-  const { imageBase64 } = req.body
+
+  if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Image is required",
+      });
+    }
+
+    // 🔥 Convert image → base64
+    const imageBase64 = req.file.buffer
+      ? req.file.buffer.toString("base64")
+      : null;
 
 
   const taskList = await TaskList.findOne({ user: userId });
   if (!taskList) return res.status(404).json({ message: "Task list not found" });
+
 
   const today = new Date().toDateString();
   // 🔁 Daily reset hold list todayComplet count
@@ -183,10 +196,14 @@ export const completeTask = async (req, res) => {
   const task = taskList.tasks.id(taskId);
   if (!task) return res.status(404).json({ message: "Task not found" });
 
+  console.log(task);
+
    const isValid = await validateTaskWithImage({
       imageBase64,
       taskTitle: task.title,
     });
+
+
 
     if (!isValid) {
       return res.status(400).json({
@@ -203,6 +220,7 @@ export const completeTask = async (req, res) => {
   ) {
     return res.json({ message: "Task already completed" });
   }
+
 
   // ✅ Mark complete
   task.lastCompletedDate = new Date();
@@ -221,6 +239,18 @@ export const completeTask = async (req, res) => {
     todayCompletedCount: taskList.todayCompletedCount,
     streak: taskList.streak,
   });
+
+    // 🌟 PREMIUM USER → upload to Cloudinary
+  // if (req.user.isPremium) {
+  //   const cloudinaryRes = await uploadOnCloudinery(localImagePath);
+
+  //   if (cloudinaryRes) {
+  //     task.proofImage = cloudinaryRes.secure_url; // optional field
+  //   }
+  // }
+
+  // 🧹 Remove temp image (IMPORTANT)
+  fs.unlinkSync(localImagePath);
 };
 
 
