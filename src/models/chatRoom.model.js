@@ -12,7 +12,7 @@ const chatRoomSchema = new mongoose.Schema(
 
     lastMessage: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Message",
+      ref: "Messages",
     },
 
     unreadCount: {

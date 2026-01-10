@@ -7,13 +7,24 @@ const taskItemSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
     description: {
       type: String,
+    },
+    // 👇 Add this field so icons are saved!
+    icon: {
+      type: String,
+      default: 'star-outline' 
+    },
+    time: {
+      type: String,  // Storing as "09:00 AM" is fine for this app
+      default: '06:00 AM',
       trim: true,
     },
-
-    icon: String,
+    isCustom: {
+      type: Boolean,
+      default: false,
+      required: true
+    },
 
     // 🔥 Sirf ye store hoga
     lastCompletedDate: {
