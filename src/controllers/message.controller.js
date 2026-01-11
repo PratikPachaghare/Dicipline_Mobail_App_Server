@@ -1,54 +1,70 @@
-import { Message } from "../models/message.model.js";
-import { ChatRoom } from "../models/chatRoom.model.js";
+import { Message } from "../models/Message.js";
+import { ChatRoom } from "../models/ChatRoom.js"; // Ensure correct filename
 
-/*
-  Send message (text / image snap)
-*/
-export const sendMessage = async (req, res) => {
+// 1. GET MESSAGES (Load history)
+export const getMessages = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { chatRoomId, text, mediaUrl, messageType } = req.body;
-
-    if (!chatRoomId) {
-      return res.status(400).json({ message: "chatRoomId required" });
-    }
-
-    const message = await Message.create({
-      chatRoom: chatRoomId,
-      sender: userId,
-      text,
-      mediaUrl, // image snap url (Cloudinary/S3)
-      messageType: messageType || "text",
-      expireAt: messageType === "image"
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000) // snap auto delete
-        : null,
-    });
-
-    await ChatRoom.findByIdAndUpdate(chatRoomId, {
-      lastMessage: message._id,
-    });
-
-    res.json(message);
+    const { roomId } = req.params;
+    const messages = await Message.find({ chatRoom: roomId })
+      .populate("sender", "name avatar")
+      .sort({ createdAt: 1 }); // Oldest first
+    res.json(messages);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-/*
-  Get messages of a chat room
-*/
-export const getMessages = async (req, res) => {
+// 2. SEND MESSAGE (Text or Image)
+export const sendMessage = async (req, res) => {
   try {
-    const { chatRoomId } = req.params;
+    const { roomId } = req.params;
+    const senderId = req.user._id;
+    const { content, type } = req.body; // type = 'text' or 'image'
+    
+    // If image, assume you uploaded it via middleware and got a URL
+    // const imageUrl = req.file ? req.file.path : null; 
 
-    const messages = await Message.find({ chatRoom: chatRoomId })
-      .populate("sender", "name avatar")
-      .sort({ createdAt: 1 });
+    const newMessage = await Message.create({
+      chatRoom: roomId,
+      sender: senderId,
+      content: content,
+      type: type || "text",
+      // imageUrl: imageUrl // Uncomment if using image upload
+    });
 
-    res.json(messages);
+    // Populate sender info for real-time display
+    await newMessage.populate("sender", "name avatar");
+
+    // Update ChatRoom last message
+    await ChatRoom.findByIdAndUpdate(roomId, {
+      lastMessage: newMessage._id,
+      $inc: { "unreadCount.otherUserId": 1 } // Logic needed to find 'other' user
+    });
+
+    // 🔥 REAL-TIME: Emit to Socket Room
+    const io = req.app.get("io");
+    io.to(roomId).emit("receive_message", newMessage);
+
+    res.status(201).json(newMessage);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// 3. CLEAR CHAT
+export const clearChat = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    // Hard delete for everyone (Snapchat style)
+    await Message.deleteMany({ chatRoom: roomId });
+    
+    // Notify users via socket
+    const io = req.app.get("io");
+    io.to(roomId).emit("chat_cleared");
+
+    res.json({ success: true, message: "Chat cleared" });
+  } catch (err) {
+    res.status(500).json({ message: "Server Error" });
   }
 };

@@ -32,10 +32,19 @@ const userSchema = new mongoose.Schema(
       enum: ['user', 'admin'],
       default: 'user',
     },
-    // Gamification
     totalPoints: {
       type: Number,
       default: 0,
+      index: true, // Index for faster global ranking
+    },
+    weeklyPoints: {
+      type: Number,
+      default: 0,
+      index: true, // Index for faster weekly sorting
+    },
+    gender:{
+      type:String,
+      default:"Male"
     },
   },
   { timestamps: true }

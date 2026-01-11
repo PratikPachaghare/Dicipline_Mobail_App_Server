@@ -2,7 +2,10 @@
 // require('dotenv').config({path:'./env'});
 import dotenv from "dotenv"
 import {connectdb} from "./DB/index.js"
-import app from "./app.js";
+// 🔴 OLD: import app from "./app.js";
+// 🟢 NEW: Import 'server' from the file where you setup socket.io
+import { server } from "./app.js"; 
+import { startCronJobs } from "./cron/weeklyReset.js";
 
 dotenv.config({
     path:'../.env'
@@ -12,28 +15,15 @@ const PORT = process.env.PORT || 8000;
 
 connectdb()
 .then(()=>{
-    app.listen(PORT,()=>{
+    startCronJobs();
+
+    // 🔴 OLD: app.listen(...) -> This ignores Socket.io!
+    // 🟢 NEW: server.listen(...) -> This starts Express + Socket.io together
+    server.listen(PORT,()=>{
         console.log(`in server side running prot is a : ${PORT}`)
+        console.log(`Socket.io is initialized! 🔌`)
     })
 })
 .catch((error)=>{
     console.log(`Error id fount in express app side `,error);
 })
-
-
-
-
-// (async ()=>{
-//     try{
-//         await mongoose.connect(`${process.env.MONGO_URL}/${DB_NAME}`)
-//         app.on("error" , (error) =>{
-//             console.log("error: ",error);
-//             throw error
-//         })
-        
-    
-//     }catch (error){
-//         console.log("error: ",error);
-//         throw error
-//     }
-// })()

@@ -1,5 +1,6 @@
 import { Streak } from "../models/streak.model.js";
 import { TaskList } from "../models/task.model.js";
+import { User } from "../models/user.model.js";
 import { validateTaskWithImage } from "../utils/geminiTaskValidator.js";
 import { markDailyActivity } from "./activityHeatmap.controllers.js";
 import fs from 'fs';
@@ -341,9 +342,6 @@ export const completeTask = async (req, res) => {
         });
       }
     }
-    // ---------------------------------------------------------
-    // FIX END
-    // ---------------------------------------------------------
 
     // 4. Validate with AI
     const isValid = await validateTaskWithImage({
@@ -363,6 +361,12 @@ export const completeTask = async (req, res) => {
     taskList.todayCompletedCount += 1;
 
     console.log("task completed");
+    // Award 10 points for completing a task
+    await User.findByIdAndUpdate(userId, {
+        $inc: { totalPoints: 10, weeklyPoints: 10 }
+    });
+
+    console.log("task completed (+10 pts)");
 
     // streack logic 
    if (taskList.todayCompletedCount === taskList.totalTasks) {
@@ -405,6 +409,12 @@ export const completeTask = async (req, res) => {
         
         await globalStreak.save();
         console.log("Global streak updated!");
+
+        // Award 20 points for completing daily streak
+        await User.findByIdAndUpdate(userId, {
+            $inc: { totalPoints: 20, weeklyPoints: 20 }
+        });
+        console.log("Streak updated (+20 pts)!");
       }
     }
     

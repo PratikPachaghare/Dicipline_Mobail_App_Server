@@ -9,15 +9,25 @@ const chatRoomSchema = new mongoose.Schema(
         required: true,
       },
     ],
-
+    // Tracks who sent the request
+    initiatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
+    // Status of the connection
+    status: {
+        type: String,
+        enum: ["pending", "accepted", "rejected"],
+        default: "pending"
+    },
     lastMessage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Messages",
     },
-
     unreadCount: {
       type: Map,
-      of: Number, // userId -> unread count
+      of: Number,
       default: {},
     },
   },
