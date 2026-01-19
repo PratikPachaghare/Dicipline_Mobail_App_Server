@@ -1,26 +1,24 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
+import { Message } from "../models/message.model.js";
+import { encryptPrivateKey, generateRSAKeys } from "../utils/crypto.js";
 
-/* ===============================
-   Generate JWT
-=============================== */
 const generateToken = (userId) => {
-  return jwt.sign(
-    { id: userId },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 
-/* ===============================
-   REGISTER (AUTO LOGIN)
-=============================== */
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password,phone } = req.body;
+    const { name, email, password, phone ,gender='Male'} =
+      req.body;
 
-    if (!name || !email || !password || !phone) {
+    if (
+      !name ||
+      !email ||
+      !password ||
+      !phone
+    ) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -29,14 +27,23 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+  // 1️ Generate keys
+  const { publicKey, privateKey } = generateRSAKeys();
+
+  // 2️ Encrypt private key with password
+  const encryptedPrivateKey = encryptPrivateKey(privateKey, password);
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
       name,
       email,
+      phone,
       password: hashedPassword,
-      phone
+      gender,
+      publicKey,
+      encryptedPrivateKey,
     });
 
     // 🔥 AUTO LOGIN AFTER REGISTER
@@ -48,8 +55,9 @@ export const registerUser = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email,
-        phone:user.phone
+        gender:user.gender,
+        publicKey: user.publicKey,
+        encryptedPrivateKey: user.encryptedPrivateKey,
       },
     });
   } catch (error) {
@@ -77,7 +85,6 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Password is required" });
     }
 
-
     // 🔍 find user by email OR phone
     const user = await User.findOne({
       $or: [{ email }, { phone }],
@@ -104,6 +111,8 @@ export const loginUser = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        publicKey: user.publicKey,
+        encryptedPrivateKey: user.encryptedPrivateKey,
       },
     });
   } catch (error) {
@@ -112,16 +121,66 @@ export const loginUser = async (req, res) => {
   }
 };
 
+export const updateKeysAndClearData = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { publicKey, encryptedPrivateKey } = req.body;
+
+    if (!publicKey || !encryptedPrivateKey) {
+      return res.status(400).json({ message: "Keys are required" });
+    }
+
+    console.log(`⚠️ RESETTING ACCOUNT FOR: ${userId}`);
+
+    // --- STEP 1: Update User Keys ---
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        publicKey: publicKey,
+        encryptedPrivateKey: encryptedPrivateKey,
+      },
+      { new: true },
+    );
+    // Option A: Delete Messages associated with this user
+    await Message.updateMany(
+      {
+        $or: [{ sender: userId }, { receiver: userId }], // Meri saari chats
+      },
+      {
+        $addToSet: { deletedFor: userId }, // Sirf mera ID list me add karo (Duplicate nahi hoga)
+      },
+    );
+
+    await Chat.deleteMany({
+      users: { $in: [userId] },
+    });
+
+    console.log("✅ Keys Updated & Old History Wiped.");
+
+    return res.status(200).json({
+      success: true,
+      message: "Security keys updated and old chats cleared successfully.",
+      user: {
+        id: updatedUser._id,
+        publicKey: updatedUser.publicKey,
+        // Private key wapas bhejne ki jarurat nahi, wo frontend ke paas already hai
+      },
+    });
+  } catch (error) {
+    console.error("Key Update Error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error while updating keys" });
+  }
+};
 
 export const verifyToken = async (req, res) => {
-  // If the request reaches here, the 'protect' middleware has already 
+  // If the request reaches here, the 'protect' middleware has already
   // verified the token and added 'req.user' to the request.
-  
-  res.status(200).json(
-    {
-      success: true,
-      message: "Token is valid",
-      user: req.user,
-    }
-  );
+
+  res.status(200).json({
+    success: true,
+    message: "Token is valid",
+    user: req.user,
+  });
 };

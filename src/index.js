@@ -16,9 +16,7 @@ const PORT = process.env.PORT || 8000;
 connectdb()
 .then(()=>{
     startCronJobs();
-
-    // 🔴 OLD: app.listen(...) -> This ignores Socket.io!
-    // 🟢 NEW: server.listen(...) -> This starts Express + Socket.io together
+    
     server.listen(PORT,()=>{
         console.log(`in server side running prot is a : ${PORT}`)
         console.log(`Socket.io is initialized! 🔌`)

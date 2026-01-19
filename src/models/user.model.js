@@ -46,6 +46,10 @@ const userSchema = new mongoose.Schema(
       type:String,
       default:"Male"
     },
+    publicKey: { type: String, default: "" },
+    encryptedPrivateKey: { 
+    type: String, // Security: By default query me mat bhejo, jabardasti mangne par hi dena
+  }
   },
   { timestamps: true }
 );

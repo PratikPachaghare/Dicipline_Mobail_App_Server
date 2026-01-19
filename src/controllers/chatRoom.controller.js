@@ -1,4 +1,5 @@
 import { ChatRoom } from "../models/chatRoom.model.js";
+import { Message } from "../models/message.model.js";
 import { User } from "../models/user.model.js";
 
 /*
@@ -50,26 +51,46 @@ export const acceptChatInvite = async (req, res) => {
     }
 };
 
-/*
-  3. GET MY CHAT LIST (Only Accepted Chats)
-*/
+
+
 export const getChatList = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // 1. Chat Rooms लाएं
     const chats = await ChatRoom.find({
       participants: userId,
-      status: "accepted" // Only show active chats
+      status: "accepted" 
     })
-      .populate("participants", "name avatar")
+      .populate("participants", "name avatar publicKey ")
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
 
-    res.json(chats);
+
+    const chatsWithCount = await Promise.all(
+      chats.map(async (chat) => {
+        
+        const count = await Message.countDocuments({
+          chatRoom: chat._id,      
+          sender: { $ne: userId },  
+          isRead: false             
+        });
+
+        return { 
+          ...chat.toObject(), 
+          unreadCount: count 
+        };
+      })
+    );
+
+    res.json(chatsWithCount);
+
   } catch (err) {
+    console.error("❌ Error in getChatList:", err); 
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /*
   4. GET PENDING REQUESTS (Invitations received)
