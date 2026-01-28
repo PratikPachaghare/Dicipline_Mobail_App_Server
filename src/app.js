@@ -11,6 +11,7 @@ import weeklyRouter from "./routes/weekly.routes.js";
 import chatRouter from "./routes/chat.routes.js";
 import activityHeatmapRouter from "./routes/activityHeatmap.routes.js";
 import leaderboardRouter from "./routes/leaderboard.routes.js";
+import dashboardRouter from "./routes/dashboard.routes.js";
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use(express.urlencoded({ extended: true, limit: "20kb" }));
 
 // ✅ 6. Routes
 app.use('/api/auth', authRouter);
+app.use('/api/dashboard', dashboardRouter);
 app.use('/api/task', taskRouter);
 app.use('/api/streak', streakRouter);
 app.use('/api/weekly', weeklyRouter);

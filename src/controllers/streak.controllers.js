@@ -43,14 +43,7 @@ export const getCurrentStreak = async (req, res) => {
       lastDateUTC.setUTCHours(0, 0, 0, 0);
       
       const oneDayMs = 24 * 60 * 60 * 1000;
-      const diffInTime = todayUTC.getTime() - lastDateUTC.getTime();
-
-      // 🔴 Logic: Agar gap 1 din se zyada hai (Matlab kal bhi skip kiya tha)
-      // Example: 
-      // Last: Today (Diff 0) -> OK
-      // Last: Yesterday (Diff 24h) -> OK (Streak active, pending for today)
-      // Last: Day before Yesterday (Diff 48h) -> BROKEN (Reset to 0)
-      
+      const diffInTime = todayUTC.getTime() - lastDateUTC.getTime(); 
       if (diffInTime > oneDayMs) {
         streak.currentStreak = 0; 
         // Note: Longest streak ko 0 nahi karte, wo record rehta hai

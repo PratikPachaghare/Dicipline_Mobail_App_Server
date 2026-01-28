@@ -72,7 +72,7 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
   try {
     const { email, phone, password } = req.body;
-
+    console.log("Login attempt with:", { email, phone });
     // ✅ email OR phone required
     if (!email && !phone) {
       return res.status(400).json({
@@ -181,6 +181,13 @@ export const verifyToken = async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Token is valid",
-    user: req.user,
+    user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,
+        phone: req.user.phone,
+        publicKey: req.user.publicKey,
+        encryptedPrivateKey: req.user.encryptedPrivateKey,
+      },
   });
 };

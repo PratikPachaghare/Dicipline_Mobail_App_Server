@@ -4,7 +4,8 @@ import {
     getPendingRequests, 
     getInviteFriendList, 
     sendChatInvite, 
-    acceptChatInvite 
+    acceptChatInvite, 
+    removeFriend
 } from "../controllers/chatRoom.controller.js";
 import { 
     getMessages, 
@@ -17,11 +18,12 @@ import { auth } from "../middlewares/auth.middleare.js";
 const router = Router();
 
 
-// --- CHAT MANAGEMENT ---
+//  CHAT MANAGEMENT 
 router.get("/list", auth, getChatList);
 router.get("/pending", auth, getPendingRequests);
 router.get("/suggestions", auth, getInviteFriendList);
 router.post("/invite", auth, sendChatInvite);
+router.post("/remove", auth, removeFriend);
 router.post("/accept", auth, acceptChatInvite);
 
 router.route("/messages/:roomId")

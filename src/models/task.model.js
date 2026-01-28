@@ -10,7 +10,7 @@ const taskItemSchema = new mongoose.Schema(
     description: {
       type: String,
     },
-    // 👇 Add this field so icons are saved!
+    //  Add this field so icons are saved!
     icon: {
       type: String,
       default: 'star-outline' 
@@ -24,6 +24,10 @@ const taskItemSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
       required: true
+    },
+    frequency: {
+      type: [Number], // Stores array like [0, 1, 4]
+      default: [0, 1, 2, 3, 4, 5, 6] // Default: Everyday
     },
 
     // 🔥 Sirf ye store hoga

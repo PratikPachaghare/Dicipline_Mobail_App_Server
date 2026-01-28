@@ -9,6 +9,7 @@ import {
   addTaskToList,
   updateTaskToList,
   deleteTaskFromList,
+  getManageTaskList,
 } from "../controllers/task.controllers.js";
 import { auth } from "../middlewares/auth.middleare.js";
 import { upload } from "../middlewares/multer.middlewares.js";
@@ -22,6 +23,8 @@ router.post("/tasks/createList", auth, createTaskList);
 router.get("/tasks/getTaskList", auth, getTaskList);
 
 router.get("/tasks/getExistTask", auth, getExistTask);
+
+router.get("/tasks/getManageTaskList", auth, getManageTaskList);
 
 // complete single task
 router.post(

@@ -32,6 +32,49 @@ export const sendChatInvite = async (req, res) => {
   }
 };
 
+
+export const removeFriend = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { friendId } = req.body; 
+
+    // 1. Validation
+    if (!friendId) {
+      return res.status(400).json({ success: false, message: "Friend ID is required" });
+    }
+
+    // 2. Find the room first (we need to check status before deleting)
+    const chatRoom = await ChatRoom.findOne({
+      participants: { $all: [userId, friendId] }
+    });
+
+    if (!chatRoom) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No connection found to remove or cancel" 
+      });
+    }
+
+    // 3. Determine Message based on current status
+    // If it was pending, we "Cancelled" it. If it was accepted, we "Removed" the friend.
+    const message = chatRoom.status === 'pending' 
+      ? "Friend request cancelled" 
+      : "Friend removed successfully";
+
+    // 4. Delete the Room from Database
+    await ChatRoom.findByIdAndDelete(chatRoom._id);
+
+    // 5. Return Success
+    return res.status(200).json({ 
+      success: true, 
+      message: message 
+    });
+
+  } catch (err) {
+    console.error("Error removing friend:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 /*
   2. ACCEPT INVITE
 */
@@ -52,17 +95,21 @@ export const acceptChatInvite = async (req, res) => {
 };
 
 
-
+/*
+  3. GET CHAT LIST
+  ✅ UPDATED: Added 'gender' to populate
+*/
 export const getChatList = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 1. Chat Rooms लाएं
+    // 1. Get Chat Rooms
     const chats = await ChatRoom.find({
       participants: userId,
       status: "accepted" 
     })
-      .populate("participants", "name avatar publicKey ")
+      // 👇 Added 'gender' here
+      .populate("participants", "name avatar publicKey gender")
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
 
@@ -93,30 +140,8 @@ export const getChatList = async (req, res) => {
 
 
 /*
-  4. GET PENDING REQUESTS (Invitations received)
-*/
-export const getPendingRequests = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        
-        // Find rooms where I am a participant, status is pending, but I DID NOT start it
-        const requests = await ChatRoom.find({
-            participants: userId,
-            status: "pending",
-            initiatedBy: { $ne: userId } 
-        }).populate("participants", "name avatar");
-
-        res.json(requests);
-    } catch (err) {
-        res.status(500).json({ message: "Server error" });
-    }
-};
-
-/*
-
-  5. GET SUGGESTIONS (Users not in any chat room with me)
-  - Supports Pagination
-  - Supports Search (Name)
+  5. GET SUGGESTIONS (Invite Friend List)
+  ✅ UPDATED: Added 'gender' to select
 */
 export const getInviteFriendList = async (req, res) => {
   try {
@@ -125,10 +150,9 @@ export const getInviteFriendList = async (req, res) => {
     // 1. Get Query Parameters (Default: page 1, 20 items)
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
-    const search = req.query.search || ""; // Search string (empty by default)
+    const search = req.query.search || ""; 
 
     // 2. Find all IDs I am already connected with (Pending OR Accepted)
-    // We don't want to show people we are already chatting with
     const existingRooms = await ChatRoom.find({ participants: userId }).select("participants");
     
     const connectedIds = existingRooms
@@ -140,19 +164,20 @@ export const getInviteFriendList = async (req, res) => {
 
     // 3. Build the Filter Object
     const filter = {
-      _id: { $nin: connectedIds } // Rule 1: Exclude existing friends
+      _id: { $nin: connectedIds } 
     };
 
     // Rule 2: If search text exists, filter by Name
     if (search) {
-      filter.name = { $regex: search, $options: "i" }; // 'i' makes it case-insensitive
+      filter.name = { $regex: search, $options: "i" }; 
     }
 
     // 4. Fetch Users with Pagination
     const users = await User.find(filter)
-      .select("name avatar email") // Only get necessary fields
-      .skip((page - 1) * limit)    // Skip previous pages
-      .limit(limit);               // Limit results
+      // 👇 Added 'gender' here
+      .select("name avatar email gender") 
+      .skip((page - 1) * limit)    
+      .limit(limit);               
 
     // (Optional) Get total count for UI pagination logic
     const totalUsers = await User.countDocuments(filter);
@@ -172,4 +197,25 @@ export const getInviteFriendList = async (req, res) => {
     console.error("Error in getInviteFriendList:", error);
     res.status(500).json({ message: "Server error" });
   }
+};
+
+/*
+  4. GET ALL PENDING REQUESTS (Sent & Received)
+  ✅ UPDATED: Added 'gender' to populate
+*/
+export const getPendingRequests = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        
+        const requests = await ChatRoom.find({
+            participants: userId,
+            status: "pending"
+        })
+        // 👇 Added 'gender' here
+        .populate("participants", "name avatar gender");
+
+        res.json(requests);
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
 };

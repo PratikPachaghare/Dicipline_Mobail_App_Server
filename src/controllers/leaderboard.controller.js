@@ -1,4 +1,6 @@
+import { ChatRoom } from "../models/chatRoom.model.js";
 import { Streak } from "../models/streak.model.js";
+import { TaskList } from "../models/task.model.js";
 import { User } from "../models/user.model.js";
 
 export const getUserRankOnly = async (req, res) => {
@@ -33,18 +35,20 @@ export const getWeeklyLeaderboard = async (req, res) => {
 
     // 1. Get Top 100 Users sorted by weeklyPoints
     const topUsers = await User.find({})
-      .select("name avatar weeklyPoints totalPoints") // Select only needed fields
-      .sort({ weeklyPoints: -1 }) // Descending order (Highest first)
+      .select("name avatar gender weeklyPoints totalPoints") // Select only needed fields
+      .sort({ weeklyPoints: -1 }) // Descending inorder (Highest first)
       .limit(100);
 
     // 2. Map data to cleaner format for Frontend
-    const leaderboardData = topUsers.map((user, index) => ({
-      userId: user._id,
-      name: user.name,
-      avatar: user.avatar?.url || "",
-      points: user.weeklyPoints,
-      rank: index + 1, // Rank is index + 1
-    }));
+const leaderboardData = topUsers.map((user, index) => ({
+  userId: user._id,
+  name: user.name,
+  avatar: user.avatar?.url || "",
+  gender: user.gender,        // ✅ ADD THIS
+  points: user.weeklyPoints,
+  rank: index + 1,
+}));
+
 
     // 3. Find Current User's Rank
     // We count how many people have MORE points than the current user
@@ -92,6 +96,7 @@ export const getWeeklyLeaderboard = async (req, res) => {
 
 export const getLeaderboardUserProfile = async (req, res) => {
   try {
+    const myId = req.user._id;
     const { userId } = req.params;
 
     // 1. Find the specific user
@@ -101,30 +106,57 @@ export const getLeaderboardUserProfile = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // 2. Find the Streak for this user (CORRECTED SYNTAX)
-    // We use findOne to find the streak document associated with this userId
-    // Note: Verify if your Streak model uses 'userId' or 'user' as the field name
-    // Your schema defines the field as 'user'
-    const userStreak = await Streak.findOne({ user: userId });
+    // 2. Check Friendship Status
+    const chatRoom = await ChatRoom.findOne({
+      participants: { $all: [myId, userId] },
+    });
 
-    // 3. Fix Avatar (Prevent Frontend Crash)
-    // If avatar is an object (from Cloudinary/Multer), extract the URL string
+    let friendStatus = 'none'; // Default: Not friends
+    let roomId = null;
+
+    if (chatRoom) {
+      roomId = chatRoom._id;
+      if (chatRoom.status === 'accepted') {
+        friendStatus = 'friends';
+      } else if (chatRoom.status === 'pending') {
+        friendStatus = 'pending';
+      }
+    }
+
+    // 3. Get Streak
+    const userStreak = await Streak.findOne({ user: userId });
+    let TaskLists = null;
+    if(friendStatus==='friends'){
+      TaskLists = await TaskList.findOne({ user: userId });
+    }
+    if(TaskLists){
+      console.log("TaskLists found:", TaskLists);
+      TaskLists = {
+        totalTasks: TaskLists.totalTasks,
+        todayCompletedCount: TaskLists.todayCompletedCount
+      };
+    }
+    
+
+
+    // 4. Fix Avatar
     let avatarUrl = user.avatar;
     if (user.avatar && typeof user.avatar === 'object') {
       avatarUrl = user.avatar.url || user.avatar.secure_url;
     }
 
-    // 4. Construct the response object
+    // 5. Construct Response
     const profileData = {
       _id: user._id,
       name: user.name,
-      avatar: avatarUrl, 
+      avatar: avatarUrl,
       gender: user.gender,
-      
-
+      totalTask: user.gender,
+      TaskLists,
+      friendStatus, 
+      roomId,   
       currentStreak: userStreak?.currentStreak || 0,
       bestStreak: userStreak?.longestStreak || 0,
-  
       totalPoints: user.totalPoints || 0,
       weeklyPoints: user.weeklyPoints || 0
     };
@@ -136,6 +168,103 @@ export const getLeaderboardUserProfile = async (req, res) => {
 
   } catch (error) {
     console.error("Error fetching leaderboard user profile:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+
+// --- GET USER'S TOTAL TASKS (Friendship Guarded) ---
+export const getUserTotalTasksList = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const myId = req.user._id;
+
+    // 1. Privacy Check: If requesting someone else's data, check if friends
+    if (myId.toString() !== userId) {
+      const isFriend = await ChatRoom.exists({
+        participants: { $all: [myId, userId] },
+        status: 'accepted'
+      });
+      
+      if (!isFriend) {
+        return res.status(403).json({ success: false, message: "Access denied. Friends only." });
+      }
+    }
+
+    // 2. Fetch Task List
+    const taskList = await TaskList.findOne({ user: userId });
+
+    if (!taskList) {
+      return res.status(200).json({ success: true, tasks: [] });
+    }
+
+    const todayString = new Date().toDateString();
+
+    // 3. Map Data (Include isCompleted status for better UI)
+    const tasks = taskList.tasks.map(task => {
+      const isCompleted = task.lastCompletedDate && 
+                          new Date(task.lastCompletedDate).toDateString() === todayString;
+      return {
+        _id: task._id,
+        title: task.title,
+        icon: task.icon,
+        description: task.description,
+        frequency: task.frequency,
+        isCompleted: !!isCompleted, 
+        isCustom: task.isCustom
+      };
+    });
+
+    return res.status(200).json({ success: true, tasks });
+
+  } catch (error) {
+    console.error("Get Total Tasks Error:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+// --- GET USER'S COMPLETED TASKS TODAY (Friendship Guarded) ---
+export const getUserTotalCompletedTasksList = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const myId = req.user._id;
+
+    // 1. Privacy Check
+    if (myId.toString() !== userId) {
+      const isFriend = await ChatRoom.exists({
+        participants: { $all: [myId, userId] },
+        status: 'accepted'
+      });
+      
+      if (!isFriend) {
+        return res.status(403).json({ success: false, message: "Access denied. Friends only." });
+      }
+    }
+
+    // 2. Fetch Task List
+    const taskList = await TaskList.findOne({ user: userId });
+
+    if (!taskList) {
+      return res.status(200).json({ success: true, tasks: [] });
+    }
+
+    // 3. Filter for Today's Date
+    const todayString = new Date().toDateString();
+
+    const completedTasks = taskList.tasks.filter(task => {
+      return task.lastCompletedDate && 
+             new Date(task.lastCompletedDate).toDateString() === todayString;
+    }).map(task => ({
+      _id: task._id,
+      title: task.title,
+      icon: task.icon,
+      completedAt: task.lastCompletedDate // Useful if you want to show "Completed at 10:00 AM"
+    }));
+
+    return res.status(200).json({ success: true, tasks: completedTasks });
+
+  } catch (error) {
+    console.error("Get Completed Tasks Error:", error);
     return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
