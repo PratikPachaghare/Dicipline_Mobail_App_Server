@@ -130,7 +130,6 @@ export const getLeaderboardUserProfile = async (req, res) => {
       TaskLists = await TaskList.findOne({ user: userId });
     }
     if(TaskLists){
-      console.log("TaskLists found:", TaskLists);
       TaskLists = {
         totalTasks: TaskLists.totalTasks,
         todayCompletedCount: TaskLists.todayCompletedCount

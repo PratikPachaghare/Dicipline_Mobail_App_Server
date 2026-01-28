@@ -219,3 +219,26 @@ export const getPendingRequests = async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 };
+export const getPendingRequestsCount = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        
+        const requests = await ChatRoom.find({
+            participants: userId,
+            status: "pending"
+        })
+
+        if(!requests){
+          return res.json(
+            {PendingRequestsCount : 0}
+          );
+        }
+
+        res.json(
+          {PendingRequestsCount : requests.length}
+        );
+    } catch (err) {
+        res.status(500).json({ message: "Server error" });
+    }
+};
+
